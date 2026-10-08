@@ -1,0 +1,38 @@
+# Python
+__pycache__/
+*.py[cod]
+
+# Virtual environment
+.venv/
+venv/
+
+# Environment variables
+.env
+
+# IDE
+.vscode/
+
+# Data
+data/raw/
+data/processed/
+
+# Large files
+*.log
+*.parquet
+*.zip
+*.tar
+*.gz
+
+# Model files
+*.pt
+*.pth
+*.ckpt
+
+# Spark
+spark-warehouse/
+metastore_db/
+derby.log
+
+# OS
+.DS_Store
+Thumbs.db

@@ -1,0 +1,8 @@
+pyspark
+pandas
+numpy
+scikit-learn
+networkx
+streamlit
+matplotlib
+pyarrow
