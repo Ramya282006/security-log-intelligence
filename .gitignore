@@ -1,29 +1,22 @@
 # Python
 __pycache__/
 *.py[cod]
-
-# Virtual environment
 .venv/
 venv/
-
-# Environment variables
 .env
 
-# IDE
-.vscode/
-
-# Data
+# Datasets and generated data
 data/raw/
 data/processed/
-
-# Large files
-*.log
+data/external/
 *.parquet
-*.zip
-*.tar
-*.gz
+# Ignore downloaded datasets, but keep small sample fixtures
+/data/raw/
+/data/processed/
+/data/external/
 
-# Model files
+# Model checkpoints
+models/
 *.pt
 *.pth
 *.ckpt
@@ -33,6 +26,7 @@ spark-warehouse/
 metastore_db/
 derby.log
 
-# OS
+# OS and editor
 .DS_Store
 Thumbs.db
+.vscode/
