@@ -1,0 +1,885 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>Process Activity Intelligence - Kafka Stream</title>
+  <style>
+    :root {
+      --bg: #f8fafc;
+      --card-bg: #ffffff;
+      --card-border: #e2e8f0;
+      --card-shadow: 0 1px 3px 0 rgba(0, 0, 0, 0.06), 0 1px 2px -1px rgba(0, 0, 0, 0.04);
+      --text: #0f172a;
+      --text-muted: #64748b;
+      --accent: #2563eb;
+      --accent-hover: #1d4ed8;
+      --normal: #059669;
+      --normal-bg: #ecfdf5;
+      --normal-border: #a7f3d0;
+      --unusual: #dc2626;
+      --unusual-bg: #fef2f2;
+      --unusual-border: #fecaca;
+      --pause: #d97706;
+      --pause-bg: #fef3c7;
+      --font-mono: ui-monospace, SFMono-Regular, Menlo, Monaco, Consolas, monospace;
+    }
+
+    * { box-sizing: border-box; margin: 0; padding: 0; }
+    body {
+      background-color: var(--bg);
+      color: var(--text);
+      font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, "Helvetica Neue", Arial, sans-serif;
+      padding: 24px;
+      line-height: 1.5;
+      max-width: 1200px;
+      margin: 0 auto;
+    }
+
+    /* Header & Kafka status */
+    header {
+      background: var(--card-bg);
+      border: 1px solid var(--card-border);
+      box-shadow: var(--card-shadow);
+      border-radius: 8px;
+      padding: 16px 20px;
+      margin-bottom: 20px;
+      display: flex;
+      justify-content: space-between;
+      align-items: center;
+      flex-wrap: wrap;
+      gap: 12px;
+    }
+
+    h1 {
+      font-size: 1.25rem;
+      font-weight: 700;
+      color: var(--text);
+      letter-spacing: -0.01em;
+    }
+
+    .kafka-status {
+      display: flex;
+      align-items: center;
+      gap: 8px;
+      font-size: 0.825rem;
+      color: var(--text-muted);
+      font-family: var(--font-mono);
+      background: #f1f5f9;
+      padding: 6px 12px;
+      border-radius: 6px;
+      border: 1px solid #cbd5e1;
+    }
+
+    .dot {
+      width: 9px;
+      height: 9px;
+      border-radius: 50%;
+      background: #94a3b8;
+      display: inline-block;
+    }
+    .dot.connected { background: var(--normal); box-shadow: 0 0 6px rgba(5, 150, 105, 0.5); }
+    .dot.streaming { background: var(--accent); box-shadow: 0 0 6px rgba(37, 99, 235, 0.5); }
+    .dot.paused { background: var(--pause); }
+
+    /* Monitoring Scope Card */
+    .scope-card {
+      background: var(--card-bg);
+      border: 1px solid var(--card-border);
+      box-shadow: var(--card-shadow);
+      border-radius: 8px;
+      padding: 16px 20px;
+      margin-bottom: 20px;
+    }
+
+    .scope-header {
+      display: flex;
+      justify-content: space-between;
+      align-items: center;
+      flex-wrap: wrap;
+      gap: 10px;
+      margin-bottom: 12px;
+      padding-bottom: 10px;
+      border-bottom: 1px solid var(--card-border);
+    }
+
+    .scope-title-group {
+      display: flex;
+      align-items: center;
+      gap: 12px;
+      flex-wrap: wrap;
+    }
+
+    .scope-main-title {
+      font-size: 0.775rem;
+      font-weight: 700;
+      text-transform: uppercase;
+      letter-spacing: 0.06em;
+      color: var(--text-muted);
+    }
+
+    .active-scope-badge {
+      font-size: 0.8rem;
+      font-family: var(--font-mono);
+      font-weight: 700;
+      color: #1e40af;
+      background: #eff6ff;
+      border: 1px solid #bfdbfe;
+      padding: 3px 10px;
+      border-radius: 9999px;
+    }
+
+    .scope-hint {
+      font-size: 0.8rem;
+      color: var(--text-muted);
+    }
+
+    .scope-controls {
+      display: flex;
+      align-items: flex-end;
+      gap: 16px;
+      flex-wrap: wrap;
+    }
+
+    .scope-field {
+      display: flex;
+      flex-direction: column;
+      gap: 5px;
+    }
+
+    .scope-field label {
+      font-size: 0.75rem;
+      font-weight: 600;
+      text-transform: uppercase;
+      letter-spacing: 0.05em;
+      color: #475569;
+    }
+
+    .scope-field select {
+      font-family: inherit;
+      font-size: 0.875rem;
+      padding: 8px 12px;
+      border-radius: 6px;
+      border: 1px solid #cbd5e1;
+      background: #ffffff;
+      color: var(--text);
+      min-width: 250px;
+      outline: none;
+      transition: border-color 0.15s ease;
+    }
+
+    .scope-field select:focus {
+      border-color: var(--accent);
+      box-shadow: 0 0 0 2px rgba(37, 99, 235, 0.15);
+    }
+
+    .scope-field select:disabled {
+      background: #f1f5f9;
+      color: #94a3b8;
+      cursor: not-allowed;
+    }
+
+    .scope-info-box {
+      font-size: 0.825rem;
+      color: #334155;
+      background: #f8fafc;
+      border: 1px solid var(--card-border);
+      padding: 8px 14px;
+      border-radius: 6px;
+      align-self: flex-end;
+      flex: 1;
+      min-width: 280px;
+      line-height: 1.45;
+    }
+
+    /* Controls Bar */
+    .controls-bar {
+      display: flex;
+      gap: 12px;
+      margin-bottom: 20px;
+    }
+
+    button {
+      font-family: inherit;
+      font-weight: 600;
+      font-size: 0.875rem;
+      padding: 10px 20px;
+      border-radius: 6px;
+      border: 1px solid transparent;
+      cursor: pointer;
+      transition: all 0.15s ease;
+      display: inline-flex;
+      align-items: center;
+      gap: 6px;
+    }
+    button:disabled {
+      opacity: 0.45;
+      cursor: not-allowed;
+      box-shadow: none;
+    }
+
+    .btn-start {
+      background: var(--accent);
+      color: #ffffff;
+      box-shadow: 0 1px 2px 0 rgba(37, 99, 235, 0.2);
+    }
+    .btn-start:hover:not(:disabled) {
+      background: var(--accent-hover);
+    }
+
+    .btn-pause {
+      background: #f8fafc;
+      color: #b45309;
+      border: 1px solid #cbd5e1;
+    }
+    .btn-pause:hover:not(:disabled) {
+      background: var(--pause-bg);
+      border-color: #fcd34d;
+    }
+
+    .btn-stop {
+      background: #f8fafc;
+      color: #b91c1c;
+      border: 1px solid #cbd5e1;
+    }
+    .btn-stop:hover:not(:disabled) {
+      background: var(--unusual-bg);
+      border-color: var(--unusual-border);
+    }
+
+    /* Grid for Summary & Latest Detection */
+    .dashboard-grid {
+      display: grid;
+      grid-template-columns: 340px 1fr;
+      gap: 20px;
+      margin-bottom: 20px;
+    }
+
+    @media (max-width: 900px) {
+      .dashboard-grid {
+        grid-template-columns: 1fr;
+      }
+    }
+
+    .card {
+      background: var(--card-bg);
+      border: 1px solid var(--card-border);
+      box-shadow: var(--card-shadow);
+      border-radius: 8px;
+      padding: 20px;
+    }
+
+    .card-title {
+      font-size: 0.775rem;
+      font-weight: 700;
+      text-transform: uppercase;
+      letter-spacing: 0.06em;
+      color: var(--text-muted);
+      margin-bottom: 16px;
+      border-bottom: 1px solid var(--card-border);
+      padding-bottom: 8px;
+    }
+
+    /* Summary counters */
+    .summary-stats {
+      display: flex;
+      flex-direction: column;
+      gap: 12px;
+    }
+
+    .stat-row {
+      display: flex;
+      justify-content: space-between;
+      align-items: center;
+      padding: 10px 14px;
+      border-radius: 6px;
+      background: #f8fafc;
+      border: 1px solid var(--card-border);
+    }
+
+    .stat-label {
+      font-size: 0.875rem;
+      color: #475569;
+      font-weight: 500;
+    }
+
+    .stat-value {
+      font-size: 1.35rem;
+      font-weight: 700;
+      font-family: var(--font-mono);
+    }
+
+    .stat-total { color: var(--text); }
+    .stat-normal { color: var(--normal); }
+    .stat-unusual { color: var(--unusual); }
+
+    /* Latest Detection */
+    .detection-empty {
+      color: var(--text-muted);
+      font-size: 0.9rem;
+      font-style: italic;
+      padding: 28px 0;
+      text-align: center;
+    }
+
+    .detection-content {
+      display: flex;
+      flex-direction: column;
+      gap: 12px;
+    }
+
+    .detection-badge {
+      display: inline-block;
+      align-self: flex-start;
+      padding: 4px 10px;
+      border-radius: 4px;
+      background: var(--unusual-bg);
+      border: 1px solid var(--unusual-border);
+      color: var(--unusual);
+      font-weight: 700;
+      font-size: 0.75rem;
+      text-transform: uppercase;
+      letter-spacing: 0.05em;
+    }
+
+    .detection-score-box {
+      display: flex;
+      align-items: baseline;
+      gap: 8px;
+    }
+
+    .score-large {
+      font-size: 2rem;
+      font-weight: 800;
+      color: var(--unusual);
+      font-family: var(--font-mono);
+      line-height: 1;
+    }
+
+    .score-thresh {
+      font-size: 0.85rem;
+      color: var(--text-muted);
+    }
+
+    .detection-reason {
+      font-size: 0.9rem;
+      line-height: 1.45;
+      color: #991b1b;
+      background: #fff1f2;
+      padding: 12px 14px;
+      border-radius: 6px;
+      border: 1px solid #ffe4e6;
+      border-left: 4px solid var(--unusual);
+    }
+
+    .detection-meta {
+      font-size: 0.825rem;
+      color: #475569;
+      font-family: var(--font-mono);
+      background: #f8fafc;
+      padding: 10px 14px;
+      border-radius: 6px;
+      border: 1px solid var(--card-border);
+      display: grid;
+      grid-template-columns: 1fr 1fr;
+      gap: 8px;
+    }
+
+    .detection-meta strong {
+      color: var(--text);
+    }
+
+    /* Incoming Events Table */
+    .table-container {
+      background: var(--card-bg);
+      border: 1px solid var(--card-border);
+      box-shadow: var(--card-shadow);
+      border-radius: 8px;
+      padding: 20px;
+      overflow-x: auto;
+    }
+
+    table {
+      width: 100%;
+      border-collapse: collapse;
+      font-size: 0.85rem;
+    }
+
+    thead {
+      background: #f8fafc;
+    }
+
+    th {
+      text-align: left;
+      padding: 10px 12px;
+      color: #475569;
+      font-weight: 600;
+      font-size: 0.75rem;
+      text-transform: uppercase;
+      letter-spacing: 0.05em;
+      border-bottom: 2px solid var(--card-border);
+    }
+
+    td {
+      padding: 11px 12px;
+      border-bottom: 1px solid #f1f5f9;
+      font-family: var(--font-mono);
+      color: #334155;
+    }
+
+    tr:hover td {
+      background: #f8fafc;
+    }
+
+    .badge {
+      display: inline-block;
+      padding: 2px 8px;
+      border-radius: 4px;
+      font-size: 0.75rem;
+      font-weight: 700;
+      text-transform: uppercase;
+      letter-spacing: 0.05em;
+    }
+
+    .badge-normal {
+      background: var(--normal-bg);
+      color: var(--normal);
+      border: 1px solid var(--normal-border);
+    }
+
+    .badge-unusual {
+      background: var(--unusual-bg);
+      color: var(--unusual);
+      border: 1px solid var(--unusual-border);
+    }
+
+    .source-tag {
+      font-size: 0.75rem;
+      color: var(--text-muted);
+    }
+  </style>
+</head>
+<body>
+
+  <!-- Header -->
+  <header>
+    <h1>Process Activity Intelligence</h1>
+    <div class="kafka-status" id="kafka-status-bar">
+      <span class="dot" id="status-dot"></span>
+      <span id="kafka-status-text">Kafka: Connecting...</span>
+    </div>
+  </header>
+
+  <!-- Monitoring Scope Selector Card -->
+  <div class="scope-card">
+    <div class="scope-header">
+      <div class="scope-title-group">
+        <span class="scope-main-title">Monitoring Scope</span>
+        <span class="active-scope-badge" id="active-scope-display">Monitoring: Entire Organization (LANL Enterprise Network - 38 hosts)</span>
+      </div>
+      <span class="scope-hint" id="scope-hint">Select a scope before starting the stream.</span>
+    </div>
+    <div class="scope-controls">
+      <div class="scope-field">
+        <label for="scope-type-select">Scope Level</label>
+        <select id="scope-type-select" onchange="onScopeTypeChange()">
+          <option value="organization">Entire Organization</option>
+          <option value="domain">Entire Domain</option>
+          <option value="single_host">Single Host</option>
+        </select>
+      </div>
+
+      <div class="scope-field" id="scope-target-container" style="display: none;">
+        <label id="scope-target-label" for="scope-target-select">Target</label>
+        <select id="scope-target-select" onchange="onScopeTargetChange()">
+          <!-- Populated dynamically -->
+        </select>
+      </div>
+
+      <div class="scope-info-box" id="scope-info-text">
+        Covers all 38 hosts across the LANL Enterprise Network dataset (1,517 total events; 38/38 replayable hosts).
+      </div>
+    </div>
+  </div>
+
+  <!-- Controls -->
+  <div class="controls-bar">
+    <button class="btn-start" id="btn-start" onclick="startStream()">START STREAM</button>
+    <button class="btn-pause" id="btn-pause" onclick="togglePause()" disabled>PAUSE</button>
+    <button class="btn-stop" id="btn-stop" onclick="stopStream()" disabled>STOP</button>
+  </div>
+
+  <!-- Summary & Latest Detection -->
+  <div class="dashboard-grid">
+    
+    <!-- Summary -->
+    <div class="card">
+      <div class="card-title">Event Summary</div>
+      <div class="summary-stats">
+        <div class="stat-row">
+          <span class="stat-label">Total Events</span>
+          <span class="stat-value stat-total" id="stat-total">0</span>
+        </div>
+        <div class="stat-row">
+          <span class="stat-label">Normal Events</span>
+          <span class="stat-value stat-normal" id="stat-normal">0</span>
+        </div>
+        <div class="stat-row">
+          <span class="stat-label">Unusual Events</span>
+          <span class="stat-value stat-unusual" id="stat-unusual">0</span>
+        </div>
+      </div>
+    </div>
+
+    <!-- Latest Detection -->
+    <div class="card">
+      <div class="card-title">Latest Detection</div>
+      <div id="detection-container">
+        <div class="detection-empty" id="detection-empty">
+          No unusual events detected. Stream normal process activity or await demonstration anomalies.
+        </div>
+        <div class="detection-content" id="detection-content" style="display: none;">
+          <div class="detection-badge">UNUSUAL ACTIVITY FLAGGED</div>
+          <div class="detection-score-box">
+            <span class="score-large" id="det-score">0.00</span>
+            <span class="score-thresh" id="det-thresh">(Threshold: 12.0)</span>
+          </div>
+          <div class="detection-reason" id="det-reason">Reason description</div>
+          <div class="detection-meta" id="det-meta">
+            <div><strong>User:</strong> <span id="det-user">-</span></div>
+            <div><strong>Host:</strong> <span id="det-host">-</span></div>
+            <div><strong>Process:</strong> <span id="det-process">-</span></div>
+            <div><strong>Event:</strong> <span id="det-type">-</span></div>
+          </div>
+        </div>
+      </div>
+    </div>
+
+  </div>
+
+  <!-- Incoming Events -->
+  <div class="table-container">
+    <div class="card-title">Incoming Events (Live Kafka Stream)</div>
+    <table>
+      <thead>
+        <tr>
+          <th>#</th>
+          <th>User</th>
+          <th>Host</th>
+          <th>Process</th>
+          <th>Start / End</th>
+          <th>Status</th>
+          <th>Anomaly Score</th>
+        </tr>
+      </thead>
+      <tbody id="events-body">
+        <tr>
+          <td colspan="7" style="text-align: center; color: var(--text-muted); padding: 28px;">
+            No events streamed yet. Select a monitoring scope and click <strong>START STREAM</strong>.
+          </td>
+        </tr>
+      </tbody>
+    </table>
+  </div>
+
+  <script>
+    let isStreaming = false;
+    let isPaused = false;
+    let pollInterval = null;
+    let scopeMeta = null;
+
+    async function initScopeOptions() {
+      try {
+        const res = await fetch("/api/kafka/scope");
+        if (!res.ok) return;
+        const data = await res.json();
+        scopeMeta = data.metadata;
+        if (data.active_scope) {
+          document.getElementById("scope-type-select").value = data.active_scope.type;
+          updateScopeTargetDropdown(data.active_scope.type, data.active_scope.target_id);
+        }
+      } catch (err) {
+        console.error("Failed to load scope options:", err);
+      }
+    }
+
+    function updateScopeTargetDropdown(scopeType, defaultTarget) {
+      const container = document.getElementById("scope-target-container");
+      const select = document.getElementById("scope-target-select");
+      const label = document.getElementById("scope-target-label");
+      const infoBox = document.getElementById("scope-info-text");
+      const startBtn = document.getElementById("btn-start");
+
+      if (scopeType === "organization") {
+        container.style.display = "none";
+        const totalH = scopeMeta ? scopeMeta.organization.total_hosts : 38;
+        const totalEv = scopeMeta ? scopeMeta.organization.total_events : 1517;
+        infoBox.innerHTML = `<strong>Entire Organization:</strong> Covers all ${totalH} hosts in the LANL Enterprise Network dataset (<span style="color:#059669; font-weight:600;">${totalH}/${totalH} replayable hosts</span>; ${totalEv.toLocaleString()} historical events).`;
+        startBtn.disabled = isStreaming;
+      } else if (scopeType === "domain") {
+        container.style.display = "flex";
+        label.textContent = "Enterprise Domain";
+        select.innerHTML = "";
+        if (scopeMeta && scopeMeta.domains) {
+          scopeMeta.domains.forEach(dom => {
+            const opt = document.createElement("option");
+            opt.value = dom.id;
+            opt.textContent = `${dom.name} (${dom.replayable_hosts_count}/${dom.total_hosts_count} hosts, ${dom.total_events} events)`;
+            select.appendChild(opt);
+          });
+        }
+        if (defaultTarget) select.value = defaultTarget;
+        const chosenDom = scopeMeta && scopeMeta.domains.find(d => d.id === select.value);
+        if (chosenDom) {
+          infoBox.innerHTML = `<strong>${chosenDom.name}:</strong> ${chosenDom.description}<br><span style="color:#059669; font-weight:600;">${chosenDom.replayable_hosts_count}/${chosenDom.total_hosts_count} hosts with replayable events</span> (${chosenDom.total_events} total events).`;
+        }
+        startBtn.disabled = isStreaming;
+      } else if (scopeType === "single_host") {
+        container.style.display = "flex";
+        label.textContent = "Target Host";
+        select.innerHTML = "";
+        const hostList = (scopeMeta && scopeMeta.hosts) ? scopeMeta.hosts : [];
+        hostList.forEach(item => {
+          const hId = (typeof item === "string") ? item : item.id;
+          const count = (typeof item === "object") ? item.event_count : 1;
+          const dom = (typeof item === "object") ? item.domain : "DOM1";
+          const opt = document.createElement("option");
+          opt.value = hId;
+          opt.textContent = `Host ${hId} (${count} events - ${dom})`;
+          select.appendChild(opt);
+        });
+        if (defaultTarget) {
+          select.value = defaultTarget;
+        } else if (select.options.length > 0) {
+          select.value = "C2519";
+        }
+
+        const chosenHostObj = hostList.find(h => (h.id || h) === select.value);
+        const count = chosenHostObj ? (chosenHostObj.event_count || 0) : 0;
+        const dom = chosenHostObj ? (chosenHostObj.domain || "Unknown") : "Unknown";
+
+        if (count > 0) {
+          infoBox.innerHTML = `Displaying strictly for <strong>Host ${select.value}</strong> (${dom}). <span style="color:#059669; font-weight:600;">${count} replayable historical events available</span>.`;
+          startBtn.disabled = isStreaming;
+        } else {
+          infoBox.innerHTML = `<span style="color:#dc2626; font-weight:600;">No replayable events available for Host ${select.value}.</span>`;
+          startBtn.disabled = true;
+        }
+      }
+    }
+
+    async function onScopeTypeChange() {
+      const type = document.getElementById("scope-type-select").value;
+      updateScopeTargetDropdown(type, null);
+      await applyScopeSelection();
+    }
+
+    async function onScopeTargetChange() {
+      const type = document.getElementById("scope-type-select").value;
+      const target = document.getElementById("scope-target-select").value;
+      const infoBox = document.getElementById("scope-info-text");
+      const startBtn = document.getElementById("btn-start");
+
+      if (type === "single_host" && scopeMeta && scopeMeta.hosts) {
+        const item = scopeMeta.hosts.find(h => (h.id || h) === target);
+        const count = item ? (item.event_count || 0) : 0;
+        const dom = item ? (item.domain || "Unknown") : "Unknown";
+        if (count > 0) {
+          infoBox.innerHTML = `Displaying strictly for <strong>Host ${target}</strong> (${dom}). <span style="color:#059669; font-weight:600;">${count} replayable historical events available</span>.`;
+          startBtn.disabled = isStreaming;
+        } else {
+          infoBox.innerHTML = `<span style="color:#dc2626; font-weight:600;">No replayable events available for Host ${target}.</span>`;
+          startBtn.disabled = true;
+        }
+      } else if (type === "domain" && scopeMeta && scopeMeta.domains) {
+        const dom = scopeMeta.domains.find(d => d.id === target);
+        if (dom) {
+          infoBox.innerHTML = `<strong>${dom.name}:</strong> ${dom.description}<br><span style="color:#059669; font-weight:600;">${dom.replayable_hosts_count}/${dom.total_hosts_count} hosts with replayable events</span> (${dom.total_events} total events).`;
+        }
+        startBtn.disabled = isStreaming;
+      }
+      await applyScopeSelection();
+    }
+
+    async function applyScopeSelection() {
+      const type = document.getElementById("scope-type-select").value;
+      const target = type === "organization" ? null : document.getElementById("scope-target-select").value;
+
+      try {
+        const res = await fetch("/api/kafka/scope", {
+          method: "POST",
+          headers: { "Content-Type": "application/json" },
+          body: JSON.stringify({ scope_type: type, target_id: target })
+        });
+        const data = await res.json();
+        if (data.label) {
+          document.getElementById("active-scope-display").textContent = `Monitoring: ${data.label}`;
+        }
+        fetchStatus();
+      } catch (err) {
+        console.error("Failed to update scope:", err);
+      }
+    }
+
+    async function fetchStatus() {
+      try {
+        const res = await fetch("/api/kafka/status");
+        if (!res.ok) return;
+        const data = await res.json();
+        updateUI(data);
+      } catch (err) {
+        document.getElementById("status-dot").className = "dot";
+        document.getElementById("kafka-status-text").textContent = "Kafka: Disconnected";
+      }
+    }
+
+    function updateUI(data) {
+      // Kafka connection & state badge
+      const dot = document.getElementById("status-dot");
+      const text = document.getElementById("kafka-status-text");
+
+      if (!data.kafka_connected) {
+        dot.className = "dot";
+        text.textContent = "Kafka: Broker Unavailable";
+      } else if (data.is_running && !data.is_paused) {
+        dot.className = "dot streaming";
+        text.textContent = `Streaming (${data.bootstrap_servers} | ${data.topic})`;
+      } else if (data.is_paused) {
+        dot.className = "dot paused";
+        text.textContent = "Stream Paused";
+      } else {
+        dot.className = "dot connected";
+        text.textContent = `Ready (${data.bootstrap_servers} | ${data.topic})`;
+      }
+
+      // Monitoring Scope UI locking while streaming
+      const scopeTypeSel = document.getElementById("scope-type-select");
+      const scopeTargetSel = document.getElementById("scope-target-select");
+      const scopeHint = document.getElementById("scope-hint");
+
+      isStreaming = data.is_running;
+
+      if (data.is_running) {
+        scopeTypeSel.disabled = true;
+        scopeTargetSel.disabled = true;
+        scopeHint.textContent = "Stream active. Stop stream to change scope.";
+      } else {
+        scopeTypeSel.disabled = false;
+        scopeTargetSel.disabled = false;
+        scopeHint.textContent = "Select a scope before starting the stream.";
+      }
+
+      if (data.active_scope && data.active_scope.label) {
+        document.getElementById("active-scope-display").textContent = `Monitoring: ${data.active_scope.label}`;
+      }
+
+      // Buttons
+      document.getElementById("btn-start").disabled = data.is_running && !data.is_paused;
+      document.getElementById("btn-pause").disabled = !data.is_running;
+      document.getElementById("btn-pause").textContent = data.is_paused ? "RESUME" : "PAUSE";
+      document.getElementById("btn-stop").disabled = !data.is_running && data.total_events === 0;
+
+      isPaused = data.is_paused;
+
+      // Summary counters
+      document.getElementById("stat-total").textContent = data.total_events;
+      document.getElementById("stat-normal").textContent = data.normal_events;
+      document.getElementById("stat-unusual").textContent = data.unusual_events;
+
+      // Latest Detection
+      const emptyDiv = document.getElementById("detection-empty");
+      const contentDiv = document.getElementById("detection-content");
+
+      if (data.latest_detection) {
+        emptyDiv.style.display = "none";
+        contentDiv.style.display = "flex";
+
+        const det = data.latest_detection;
+        document.getElementById("det-score").textContent = Number(det.anomaly_score).toFixed(2);
+        document.getElementById("det-thresh").textContent = `(Threshold: ${Number(det.threshold).toFixed(1)})`;
+        document.getElementById("det-reason").textContent = det.reason;
+
+        document.getElementById("det-user").textContent = det.observed.user || "-";
+        document.getElementById("det-host").textContent = det.observed.computer || "-";
+        document.getElementById("det-process").textContent = det.observed.process || "-";
+        document.getElementById("det-type").textContent = det.observed.event_type || "-";
+      } else {
+        emptyDiv.style.display = "block";
+        contentDiv.style.display = "none";
+      }
+
+      // Incoming Events Table
+      const tbody = document.getElementById("events-body");
+      if (data.recent_events && data.recent_events.length > 0) {
+        tbody.innerHTML = data.recent_events.map(ev => {
+          const isUnusual = ev.status === "UNUSUAL";
+          const badgeClass = isUnusual ? "badge-unusual" : "badge-normal";
+          const scoreDisplay = ev.score !== null ? Number(ev.score).toFixed(2) : "-";
+          return `
+            <tr>
+              <td>${ev.seq_id}</td>
+              <td>${ev.user}</td>
+              <td><strong>${ev.computer}</strong></td>
+              <td>${ev.process}</td>
+              <td>${ev.event_type}</td>
+              <td><span class="badge ${badgeClass}">${ev.status}</span></td>
+              <td style="color: ${isUnusual ? 'var(--unusual)' : 'var(--text-muted)'}; font-weight: ${isUnusual ? '700' : 'normal'}">${scoreDisplay}</td>
+            </tr>
+          `;
+        }).join("");
+      } else if (!data.is_running && data.total_events === 0) {
+        tbody.innerHTML = `
+          <tr>
+            <td colspan="7" style="text-align: center; color: var(--text-muted); padding: 28px;">
+              No events streamed yet. Select a monitoring scope and click <strong>START STREAM</strong>.
+            </td>
+          </tr>
+        `;
+      }
+    }
+
+    async function startStream() {
+      const type = document.getElementById("scope-type-select").value;
+      const target = type === "organization" ? null : document.getElementById("scope-target-select").value;
+
+      try {
+        await fetch("/api/kafka/start", {
+          method: "POST",
+          headers: { "Content-Type": "application/json" },
+          body: JSON.stringify({ interval: 0.7, count: 40, scope_type: type, target_id: target })
+        });
+        if (!pollInterval) {
+          pollInterval = setInterval(fetchStatus, 500);
+        }
+        fetchStatus();
+      } catch (err) {
+        console.error("Failed to start Kafka stream:", err);
+      }
+    }
+
+    async function togglePause() {
+      const endpoint = isPaused ? "/api/kafka/resume" : "/api/kafka/pause";
+      try {
+        await fetch(endpoint, { method: "POST" });
+        fetchStatus();
+      } catch (err) {
+        console.error("Failed to toggle pause:", err);
+      }
+    }
+
+    async function stopStream() {
+      try {
+        await fetch("/api/kafka/stop", { method: "POST" });
+        fetchStatus();
+      } catch (err) {
+        console.error("Failed to stop Kafka stream:", err);
+      }
+    }
+
+    // Initialization
+    initScopeOptions();
+    fetchStatus();
+    pollInterval = setInterval(fetchStatus, 750);
+  </script>
+</body>
+</html>
